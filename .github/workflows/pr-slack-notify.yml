@@ -33,43 +33,43 @@ jobs:
 
       # ─────────────────────────────────────────────────────────────
       # 👤 Slack ID Cache: Try downloading Slack ID artifact
-      - name: Try to download cached Slack ID
-        id: slack-cache
-        uses: actions/download-artifact@v4
-        with:
-          name: slack-id-${{ github.event.pull_request.user.login }}
-        continue-on-error: true
+      # - name: Try to download cached Slack ID
+      #   id: slack-cache
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: slack-id-${{ github.event.pull_request.user.login }}
+      #   continue-on-error: true
 
-      - name: Read Slack ID from cache
-        id: slack-read
-        run: |
-          if [ -f slack-id.txt ]; then
-            slack_id=$(cat slack-id.txt)
-            echo "slack_id=$slack_id" >> $GITHUB_OUTPUT
-          fi
+      # - name: Read Slack ID from cache
+      #   id: slack-read
+      #   run: |
+      #     if [ -f slack-id.txt ]; then
+      #       slack_id=$(cat slack-id.txt)
+      #       echo "slack_id=$slack_id" >> $GITHUB_OUTPUT
+      #     fi
 
       # ─────────────────────────────────────────────────────────────
       # 🔍 Fallback: Resolve Slack ID using reusable workflow
-      - name: Resolve Slack ID if not cached
-        if: ${{ steps.slack-read.outputs.slack_id == '' }}
-        uses: ./.github/workflows/resolve-slack-id.yml
-        with:
-          github_user: ${{ github.event.pull_request.user.login }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        id: slack-lookup
+      # - name: Resolve Slack ID if not cached
+      #   if: ${{ steps.slack-read.outputs.slack_id == '' }}
+      #   uses: ./.github/workflows/resolve-slack-id.yml
+      #   with:
+      #     github_user: ${{ github.event.pull_request.user.login }}
+      #     SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   id: slack-lookup
 
       # 🧠 Save resolved Slack ID
-      - name: Cache Slack ID
-        if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
-        run: echo "${{ steps.slack-lookup.outputs.slack_id }}" > slack-id.txt
+      # - name: Cache Slack ID
+      #   if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
+      #   run: echo "${{ steps.slack-lookup.outputs.slack_id }}" > slack-id.txt
 
-      - name: Upload Slack ID artifact
-        if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: slack-id-${{ github.event.pull_request.user.login }}
-          path: slack-id.txt
+      # - name: Upload Slack ID artifact
+      #   if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: slack-id-${{ github.event.pull_request.user.login }}
+      #     path: slack-id.txt
 
       # ─────────────────────────────────────────────────────────────
       # 📎 Retrieve existing Slack message timestamp (for updates)

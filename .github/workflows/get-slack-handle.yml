@@ -1,62 +1,62 @@
-name: Resolve Slack ID from GitHub user
+# name: Resolve Slack ID from GitHub user
 
-on:
-  workflow_call:
-    inputs:
-      github_user:
-        required: true
-        type: string
-    secrets:
-      SLACK_BOT_TOKEN:
-        required: true
-      GITHUB_TOKEN:
-        required: true
-    outputs:
-      slack_id:
-        description: "Resolved Slack user ID"
-        value: ${{ jobs.resolve.outputs.slack_id }}
+# on:
+#   workflow_call:
+#     inputs:
+#       github_user:
+#         required: true
+#         type: string
+#     secrets:
+#       SLACK_BOT_TOKEN:
+#         required: true
+#       GITHUB_TOKEN:
+#         required: true
+#     outputs:
+#       slack_id:
+#         description: "Resolved Slack user ID"
+#         value: ${{ jobs.resolve.outputs.slack_id }}
 
-jobs:
-  resolve:
-    runs-on: ubuntu-latest
-    outputs:
-      slack_id: ${{ steps.set-id.outputs.slack_id }}
+# jobs:
+#   resolve:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       slack_id: ${{ steps.set-id.outputs.slack_id }}
 
-    steps:
-      - name: Get GitHub user's email
-        id: get-email
-        run: |
-          GH_API="https://api.github.com/users/${{ inputs.github_user }}"
-          EMAIL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$GH_API" | jq -r .email)
+#     steps:
+#       - name: Get GitHub user's email
+#         id: get-email
+#         run: |
+#           GH_API="https://api.github.com/users/${{ inputs.github_user }}"
+#           EMAIL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$GH_API" | jq -r .email)
 
-          if [ "$EMAIL" == "null" ] || [ -z "$EMAIL" ]; then
-            echo "Email not available for user ${{ inputs.github_user }}."
-            echo "email=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+#           if [ "$EMAIL" == "null" ] || [ -z "$EMAIL" ]; then
+#             echo "Email not available for user ${{ inputs.github_user }}."
+#             echo "email=" >> $GITHUB_OUTPUT
+#             exit 0
+#           fi
 
-          echo "email=$EMAIL" >> $GITHUB_OUTPUT
+#           echo "email=$EMAIL" >> $GITHUB_OUTPUT
 
-      - name: Lookup Slack user by email
-        id: set-id
-        run: |
-          EMAIL="${{ steps.get-email.outputs.email }}"
+#       - name: Lookup Slack user by email
+#         id: set-id
+#         run: |
+#           EMAIL="${{ steps.get-email.outputs.email }}"
           
-          if [ -z "$EMAIL" ]; then
-            echo "Slack ID not found due to missing email."
-            echo "slack_id=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+#           if [ -z "$EMAIL" ]; then
+#             echo "Slack ID not found due to missing email."
+#             echo "slack_id=" >> $GITHUB_OUTPUT
+#             exit 0
+#           fi
 
-          RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
-            "https://slack.com/api/users.lookupByEmail?email=$EMAIL")
+#           RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+#             "https://slack.com/api/users.lookupByEmail?email=$EMAIL")
 
-          OK=$(echo "$RESPONSE" | jq -r '.ok')
-          if [ "$OK" != "true" ]; then
-            echo "Slack user not found for email: $EMAIL"
-            echo "slack_id=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+#           OK=$(echo "$RESPONSE" | jq -r '.ok')
+#           if [ "$OK" != "true" ]; then
+#             echo "Slack user not found for email: $EMAIL"
+#             echo "slack_id=" >> $GITHUB_OUTPUT
+#             exit 0
+#           fi
 
-          SLACK_ID=$(echo "$RESPONSE" | jq -r '.user.id')
-          echo "slack_id=$SLACK_ID" >> $GITHUB_OUTPUT
+#           SLACK_ID=$(echo "$RESPONSE" | jq -r '.user.id')
+#           echo "slack_id=$SLACK_ID" >> $GITHUB_OUTPUT

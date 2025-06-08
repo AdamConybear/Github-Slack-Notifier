@@ -90,54 +90,35 @@ jobs:
 
       # ─────────────────────────────────────────────────────────────
       # 🧱 Build Slack message payload
-      - name: Build Slack message payload
+      - name: Build Slack message blocks
+        id: message-block
         run: |
-          ts="${{ steps.read-ts.outputs.ts }}"
-          emoji="${{ steps.pr_status.outputs.emoji }}"
-          status="${{ steps.pr_status.outputs.status }}"
-          pr_url="${{ github.event.pull_request.html_url }}"
-          pr_number="${{ github.event.pull_request.number }}"
-          pr_title="${{ github.event.pull_request.title }}"
-          gh_author="${{ github.event.pull_request.user.login }}"
-          slack_id="${{ steps.slack-read.outputs.slack_id || steps.slack-lookup.outputs.slack_id }}"
-
-          payload_file="slack-payload.json"
-          echo "{" > $payload_file
-          if [ -n "$ts" ]; then
-            echo "  \"ts\": \"$ts\"," >> $payload_file
-          fi
-
-          if [ -z "$slack_id" ]; then
-            author_text="*Author:* $gh_author"
-          else
-            author_text="*Author:* <@$slack_id>"
-          fi
-
-          cat <<EOF >> $payload_file
-            "blocks": [
+          BLOCKS=$(jq -n \
+            --arg emoji "${{ steps.pr_status.outputs.emoji }}" \
+            --arg url "${{ github.event.pull_request.html_url }}" \
+            --arg title "${{ github.event.pull_request.title }}" \
+            --arg number "${{ github.event.pull_request.number }}" \
+            --arg author "${{ github.event.pull_request.user.login }}" \
+            --arg status "${{ steps.pr_status.outputs.status }}" '
+            [
               {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "$emoji *<$pr_url|PR #$pr_number: $pr_title>*"
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: "\($emoji) *<\($url)|PR #\($number): \($title)>*"
                 }
               },
               {
-                "type": "context",
-                "elements": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "$author_text"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Status:* \`$status\`"
-                  }
+                type: "context",
+                elements: [
+                  { type: "mrkdwn", text: "*Author:* <https://github.com/\($author)|\($author)>" },
+                  { type: "mrkdwn", text: "*Status:* `\($status)`" }
                 ]
               }
             ]
-          }
-          EOF
+          ')
+
+          echo "blocks_json=$BLOCKS" >> $GITHUB_OUTPUT
 
       # ─────────────────────────────────────────────────────────────
       # 📤 Send (or update) Slack message
@@ -146,7 +127,10 @@ jobs:
         uses: slackapi/slack-github-action@v1.24.0
         with:
           channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
-          payload-file-path: slack-payload.json
+          payload: |
+            {
+              "blocks": ${{ steps.message-block.outputs.blocks_json }}
+            }
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
@@ -156,7 +140,10 @@ jobs:
         with:
           channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
           update-ts: ${{ steps.read-ts.outputs.ts }}
-          payload-file-path: slack-payload.json
+          payload: |
+            {
+              "blocks": ${{ steps.message-block.outputs.blocks_json }}
+            }
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 

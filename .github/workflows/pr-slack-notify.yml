@@ -141,11 +141,21 @@ jobs:
 
       # ─────────────────────────────────────────────────────────────
       # 📤 Send (or update) Slack message
-      - name: Send or update Slack message
-        id: slack
+      - name: Send new Slack message
+        if: ${{ steps.read-ts.outputs.ts == '' }}
         uses: slackapi/slack-github-action@v1.24.0
         with:
           channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          payload-file-path: slack-payload.json
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      - name: Update Slack message
+        if: ${{ steps.read-ts.outputs.ts != '' }}
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          update-ts: ${{ steps.read-ts.outputs.ts }}
           payload-file-path: slack-payload.json
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

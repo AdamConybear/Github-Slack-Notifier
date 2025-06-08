@@ -145,7 +145,7 @@ jobs:
         id: slack
         uses: slackapi/slack-github-action@v1.24.0
         with:
-          channel: "github-tester"
+          channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
           payload-file-path: slack-payload.json
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

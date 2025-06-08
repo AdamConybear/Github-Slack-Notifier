@@ -1,0 +1,164 @@
+name: PR Slack Notifier
+
+on:
+  pull_request:
+    types: [labeled, synchronize, closed]
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Exit if label is not "Review Needed"
+        if: ${{ github.event.action == 'labeled' }}
+        run: |
+          if [[ "${{ github.event.label.name }}" != "Review Needed" ]]; then
+            echo "Label is not 'Review Needed'. Exiting."
+            exit 0
+          fi
+
+      - name: Set PR Status and Emoji
+        id: pr_status
+        run: |
+          status="${{ github.event.pull_request.state }}"
+          emoji=":eyes:"
+          if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            status="merged"
+            emoji=":tada:"
+          elif [[ "$status" == "closed" ]]; then
+            emoji=":x:"
+          fi
+          echo "status=$status" >> $GITHUB_OUTPUT
+          echo "emoji=$emoji" >> $GITHUB_OUTPUT
+
+      # ─────────────────────────────────────────────────────────────
+      # 👤 Slack ID Cache: Try downloading Slack ID artifact
+      - name: Try to download cached Slack ID
+        id: slack-cache
+        uses: actions/download-artifact@v4
+        with:
+          name: slack-id-${{ github.event.pull_request.user.login }}
+        continue-on-error: true
+
+      - name: Read Slack ID from cache
+        id: slack-read
+        run: |
+          if [ -f slack-id.txt ]; then
+            slack_id=$(cat slack-id.txt)
+            echo "slack_id=$slack_id" >> $GITHUB_OUTPUT
+          fi
+
+      # ─────────────────────────────────────────────────────────────
+      # 🔍 Fallback: Resolve Slack ID using reusable workflow
+      - name: Resolve Slack ID if not cached
+        if: ${{ steps.slack-read.outputs.slack_id == '' }}
+        uses: ./.github/workflows/resolve-slack-id.yml
+        with:
+          github_user: ${{ github.event.pull_request.user.login }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: slack-lookup
+
+      # 🧠 Save resolved Slack ID
+      - name: Cache Slack ID
+        if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
+        run: echo "${{ steps.slack-lookup.outputs.slack_id }}" > slack-id.txt
+
+      - name: Upload Slack ID artifact
+        if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: slack-id-${{ github.event.pull_request.user.login }}
+          path: slack-id.txt
+
+      # ─────────────────────────────────────────────────────────────
+      # 📎 Retrieve existing Slack message timestamp (for updates)
+      - name: Download Slack timestamp artifact (if exists)
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          name: slack-ts-artifact-${{ github.event.pull_request.number }}
+        continue-on-error: true
+
+      - name: Read Slack timestamp (if file exists)
+        id: read-ts
+        run: |
+          if [ -f slack-ts.txt ]; then
+            ts=$(cat slack-ts.txt)
+            echo "ts=$ts" >> $GITHUB_OUTPUT
+          fi
+
+      # ─────────────────────────────────────────────────────────────
+      # 🧱 Build Slack message payload
+      - name: Build Slack message payload
+        run: |
+          ts="${{ steps.read-ts.outputs.ts }}"
+          emoji="${{ steps.pr_status.outputs.emoji }}"
+          status="${{ steps.pr_status.outputs.status }}"
+          pr_url="${{ github.event.pull_request.html_url }}"
+          pr_number="${{ github.event.pull_request.number }}"
+          pr_title="${{ github.event.pull_request.title }}"
+          gh_author="${{ github.event.pull_request.user.login }}"
+          slack_id="${{ steps.slack-read.outputs.slack_id || steps.slack-lookup.outputs.slack_id }}"
+          channel="${{ secrets.SLACK_CHANNEL_ID }}"
+
+          payload_file="slack-payload.json"
+          echo "{" > $payload_file
+          echo "  \"channel\": \"$channel\"," >> $payload_file
+          if [ -n "$ts" ]; then
+            echo "  \"ts\": \"$ts\"," >> $payload_file
+          fi
+
+          if [ -z "$slack_id" ]; then
+            author_text="*Author:* <https://github.com/$gh_author|$gh_author>"
+          else
+            author_text="*Author:* <@$slack_id>"
+          fi
+
+          cat <<EOF >> $payload_file
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "$emoji *<$pr_url|PR #$pr_number: $pr_title>*"
+                }
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "$author_text"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Status:* \`$status\`"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      # ─────────────────────────────────────────────────────────────
+      # 📤 Send (or update) Slack message
+      - name: Send or update Slack message
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload-file-path: slack-payload.json
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      # 💾 Save Slack timestamp for future updates
+      - name: Save Slack timestamp
+        if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
+        run: echo "${{ steps.slack.outputs.ts }}" > slack-ts.txt
+
+      - name: Upload Slack timestamp artifact
+        if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: slack-ts-artifact-${{ github.event.pull_request.number }}
+          path: slack-ts.txt

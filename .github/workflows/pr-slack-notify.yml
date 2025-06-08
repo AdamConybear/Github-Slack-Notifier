@@ -100,17 +100,17 @@ jobs:
           pr_title="${{ github.event.pull_request.title }}"
           gh_author="${{ github.event.pull_request.user.login }}"
           slack_id="${{ steps.slack-read.outputs.slack_id || steps.slack-lookup.outputs.slack_id }}"
-          channel_id="${{ secrets.SLACK_CHANNEL_ID }}"
+          channel="github-tester"
 
           payload_file="slack-payload.json"
           echo "{" > $payload_file
-          echo "  \"channel_id\": \"$channel_id\"," >> $payload_file
+          echo "  \"channel\": \"$channel\"," >> $payload_file
           if [ -n "$ts" ]; then
             echo "  \"ts\": \"$ts\"," >> $payload_file
           fi
 
           if [ -z "$slack_id" ]; then
-            author_text="*Author:* <https://github.com/$gh_author|$gh_author>"
+            author_text="*Author:* $gh_author"
           else
             author_text="*Author:* <@$slack_id>"
           fi

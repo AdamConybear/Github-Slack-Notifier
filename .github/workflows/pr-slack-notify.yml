@@ -100,11 +100,9 @@ jobs:
           pr_title="${{ github.event.pull_request.title }}"
           gh_author="${{ github.event.pull_request.user.login }}"
           slack_id="${{ steps.slack-read.outputs.slack_id || steps.slack-lookup.outputs.slack_id }}"
-          channel="github-tester"
 
           payload_file="slack-payload.json"
           echo "{" > $payload_file
-          echo "  \"channel\": \"$channel\"," >> $payload_file
           if [ -n "$ts" ]; then
             echo "  \"ts\": \"$ts\"," >> $payload_file
           fi
@@ -147,6 +145,7 @@ jobs:
         id: slack
         uses: slackapi/slack-github-action@v1.24.0
         with:
+          channel: "github-tester"
           payload-file-path: slack-payload.json
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

@@ -72,21 +72,21 @@ jobs:
       #     path: slack-id.txt
 
       # ─────────────────────────────────────────────────────────────
-      # 📎 Retrieve existing Slack message timestamp (for updates)
-      # - name: Download Slack timestamp artifact (if exists)
-      #   id: download
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: slack-ts-artifact-${{ github.event.pull_request.number }}
-      #   continue-on-error: true
+      📎 Retrieve existing Slack message timestamp (for updates)
+      - name: Download Slack timestamp artifact (if exists)
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          name: slack-ts-artifact-${{ github.event.pull_request.number }}
+        continue-on-error: true
 
-      # - name: Read Slack timestamp (if file exists)
-      #   id: read-ts
-      #   run: |
-      #     if [ -f slack-ts.txt ]; then
-      #       ts=$(cat slack-ts.txt)
-      #       echo "ts=$ts" >> $GITHUB_OUTPUT
-      #     fi
+      - name: Read Slack timestamp (if file exists)
+        id: read-ts
+        run: |
+          if [ -f slack-ts.txt ]; then
+            ts=$(cat slack-ts.txt)
+            echo "ts=$ts" >> $GITHUB_OUTPUT
+          fi
 
       # ─────────────────────────────────────────────────────────────
       # 🧱 Build Slack message payload
@@ -118,7 +118,8 @@ jobs:
             ]
           ')
 
-          echo "blocks_json=$BLOCKS" >> $GITHUB_OUTPUT
+          printf "blocks_json<<EOF\n%s\nEOF\n" "$BLOCKS" >> "$GITHUB_OUTPUT"
+
 
       # ─────────────────────────────────────────────────────────────
       # 📤 Send (or update) Slack message

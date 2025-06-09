@@ -107,14 +107,14 @@ jobs:
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: ":blob-wave: A PR is in need of review"
+                  text: ":wave: A PR is in need of review"
                 }
               },
               {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* \($status) :\($emoji):"
+                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* \($status) \($emoji)"
                 }
               }
             ]
@@ -137,7 +137,7 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
-      - name: Save Slack timestamp to cache
+      - name: Save Slack timestamp to file
         if: ${{ steps.send.outputs.ts != '' }}
         run: |
           mkdir -p cache_ts
@@ -162,15 +162,3 @@ jobs:
             }
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-
-      # 💾 Save Slack timestamp for future updates
-      # - name: Save Slack timestamp
-      #   if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
-      #   run: echo "${{ steps.slack.outputs.ts }}" > slack-ts.txt
-
-      # - name: Upload Slack timestamp artifact
-      #   if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: slack-ts-artifact-${{ github.event.pull_request.number }}
-      #     path: slack-ts.txt

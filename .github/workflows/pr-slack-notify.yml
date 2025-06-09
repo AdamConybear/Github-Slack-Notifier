@@ -72,7 +72,7 @@ jobs:
       #     path: slack-id.txt
 
       # ─────────────────────────────────────────────────────────────
-      📎 Retrieve existing Slack message timestamp (for updates)
+      # 📎 Retrieve existing Slack message timestamp (for updates)
       - name: Download Slack timestamp artifact (if exists)
         id: download
         uses: actions/download-artifact@v4

@@ -106,39 +106,22 @@ jobs:
               {
                 type: "section",
                 text: {
-                  type: "plain_text",
+                  type: "mrkdwn",
                   text: ":blob-wave: A PR is in need of review"
                 }
               },
               {
-                type: "rich_text",
-                elements: [
-                  {
-                    type: "link",
-                    url: $url,
-                    text: $title,
-                    style: {
-                      "bold": true
-                    }
-                  },
-                  {
-                    type: "text",
-                    text: "\nAuthor: $author"
-                  },
-                  {
-                    type: "text",
-                    text: "\nStatus: $status "
-                  },
-                  {
-                    type: "emoji",
-                    name: $emoji
-                  }
-                ]
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: "*<$url|$title>*\n*Author:* $author\n*Status:* $status :$emoji:"
+                }
               }
             ]
           ')
 
           printf "blocks_json<<EOF\n%s\nEOF\n" "$BLOCKS" >> "$GITHUB_OUTPUT"
+
       # ─────────────────────────────────────────────────────────────
       # 📤 Send (or update) Slack message
       - name: Send new Slack message

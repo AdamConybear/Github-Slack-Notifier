@@ -2,7 +2,7 @@ name: PR Slack Notifier
 
 on:
   pull_request:
-    types: [labeled, synchronize, closed]
+    types: [labeled, closed]
 
 jobs:
   notify-slack:
@@ -21,12 +21,12 @@ jobs:
         id: pr_status
         run: |
           status="${{ github.event.pull_request.state }}"
-          emoji=":eyes:"
+          emoji=":large_green_circle:"
           if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
             status="merged"
-            emoji=":tada:"
+            emoji=":git-merged:"
           elif [[ "$status" == "closed" ]]; then
-            emoji=":x:"
+            emoji=":git-closed:"
           fi
           echo "status=$status" >> $GITHUB_OUTPUT
           echo "emoji=$emoji" >> $GITHUB_OUTPUT
@@ -101,30 +101,45 @@ jobs:
             --arg emoji "${{ steps.pr_status.outputs.emoji }}" \
             --arg url "${{ github.event.pull_request.html_url }}" \
             --arg title "${{ github.event.pull_request.title }}" \
-            --arg number "${{ github.event.pull_request.number }}" \
             --arg author "${{ github.event.pull_request.user.login }}" \
             --arg status "${{ steps.pr_status.outputs.status }}" '
             [
               {
                 type: "section",
                 text: {
-                  type: "mrkdwn",
-                  text: "\($emoji) *<\($url)|PR #\($number): \($title)>*"
+                  type: "plain_text",
+                  text: ":blob-wave: A PR is in need of review"
                 }
               },
               {
-                type: "context",
+                type: "rich_text",
                 elements: [
-                  { type: "mrkdwn", text: "*Author:* <https://github.com/\($author)|\($author)>" },
-                  { type: "mrkdwn", text: "*Status:* `\($status)`" }
+                  {
+                    type: "link",
+                    url: $url,
+                    text: $title,
+                    style: {
+                      "bold": true
+                    }
+                  },
+                  {
+                    type: "text",
+                    text: "\nAuthor: $author"
+                  },
+                  {
+                    type: "text",
+                    text: "\nStatus: $status "
+                  },
+                  {
+                    type: "emoji",
+                    name: $emoji
+                  }
                 ]
               }
             ]
           ')
 
           printf "blocks_json<<EOF\n%s\nEOF\n" "$BLOCKS" >> "$GITHUB_OUTPUT"
-
-
       # ─────────────────────────────────────────────────────────────
       # 📤 Send (or update) Slack message
       - name: Send new Slack message

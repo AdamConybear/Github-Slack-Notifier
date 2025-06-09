@@ -114,7 +114,7 @@ jobs:
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: "*<$url|$title>*\n*Author:* $author\n*Status:* $status :$emoji:"
+                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* \($status) :\($emoji):"
                 }
               }
             ]

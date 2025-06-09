@@ -72,20 +72,24 @@ jobs:
       #     path: slack-id.txt
 
       # ─────────────────────────────────────────────────────────────
-      # 📎 Retrieve existing Slack message timestamp (for updates)
-      - name: Download Slack timestamp artifact (if exists)
-        id: download
-        uses: actions/download-artifact@v4
+      # 🧠 Restore Slack timestamp from cache
+      - name: Restore Slack timestamp from cache
+        id: restore-ts
+        uses: actions/cache/restore@v4
         with:
-          name: slack-ts-artifact-${{ github.event.pull_request.number }}
-        continue-on-error: true
+          path: cache_ts
+          key: slack-ts-${{ github.event.pull_request.number }}
+          restore-keys: slack-ts-
 
-      - name: Read Slack timestamp (if file exists)
+      # ✅ Read the timestamp if available
+      - name: Read Slack timestamp from cache
         id: read-ts
         run: |
-          if [ -f slack-ts.txt ]; then
-            ts=$(cat slack-ts.txt)
+          if [ -f cache_ts/slack-ts.txt ]; then
+            ts=$(cat cache_ts/slack-ts.txt)
             echo "ts=$ts" >> $GITHUB_OUTPUT
+          else
+            echo "ts=" >> $GITHUB_OUTPUT
           fi
 
       # ─────────────────────────────────────────────────────────────
@@ -135,6 +139,19 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
+      - name: Save Slack timestamp to cache
+        if: ${{ steps.send.outputs.ts != '' }}
+        run: |
+          mkdir -p cache_ts
+          echo "${{ steps.send.outputs.ts }}" > cache_ts/slack-ts.txt
+
+      - name: Save Slack timestamp to cache (persist)
+        if: ${{ steps.send.outputs.ts != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: cache_ts
+          key: slack-ts-${{ github.event.pull_request.number }}
+
       - name: Update Slack message
         if: ${{ steps.read-ts.outputs.ts != '' }}
         uses: slackapi/slack-github-action@v1.24.0
@@ -149,13 +166,13 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
       # 💾 Save Slack timestamp for future updates
-      - name: Save Slack timestamp
-        if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
-        run: echo "${{ steps.slack.outputs.ts }}" > slack-ts.txt
+      # - name: Save Slack timestamp
+      #   if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
+      #   run: echo "${{ steps.slack.outputs.ts }}" > slack-ts.txt
 
-      - name: Upload Slack timestamp artifact
-        if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: slack-ts-artifact-${{ github.event.pull_request.number }}
-          path: slack-ts.txt
+      # - name: Upload Slack timestamp artifact
+      #   if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: slack-ts-artifact-${{ github.event.pull_request.number }}
+      #     path: slack-ts.txt

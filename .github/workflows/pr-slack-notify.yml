@@ -129,6 +129,7 @@ jobs:
       # 📤 Send (or update) Slack message
       - name: Send new Slack message
         if: ${{ steps.read-ts.outputs.ts == '' }}
+        id: send
         uses: slackapi/slack-github-action@v1.24.0
         with:
           channel-id: ${{ secrets.SLACK_CHANNEL_ID }}

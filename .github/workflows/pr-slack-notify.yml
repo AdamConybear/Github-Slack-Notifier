@@ -79,7 +79,6 @@ jobs:
         with:
           path: cache_ts
           key: slack-ts-${{ github.event.pull_request.number }}
-          restore-keys: slack-ts-
 
       # ✅ Read the timestamp if available
       - name: Read Slack timestamp from cache

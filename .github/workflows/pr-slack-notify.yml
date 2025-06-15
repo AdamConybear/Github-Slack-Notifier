@@ -31,47 +31,11 @@ jobs:
           echo "status=$status" >> $GITHUB_OUTPUT
           echo "emoji=$emoji" >> $GITHUB_OUTPUT
 
-      # ─────────────────────────────────────────────────────────────
-      # 👤 Slack ID Cache: Try downloading Slack ID artifact
-      # - name: Try to download cached Slack ID
-      #   id: slack-cache
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: slack-id-${{ github.event.pull_request.user.login }}
-      #   continue-on-error: true
-
-      # - name: Read Slack ID from cache
-      #   id: slack-read
+      # - name: Debug cache file
       #   run: |
-      #     if [ -f slack-id.txt ]; then
-      #       slack_id=$(cat slack-id.txt)
-      #       echo "slack_id=$slack_id" >> $GITHUB_OUTPUT
-      #     fi
+      #     ls -la cache_ts || echo "No cache_ts dir"
+      #     cat cache_ts/slack-ts.txt || echo "No ts file"
 
-      # ─────────────────────────────────────────────────────────────
-      # 🔍 Fallback: Resolve Slack ID using reusable workflow
-      # - name: Resolve Slack ID if not cached
-      #   if: ${{ steps.slack-read.outputs.slack_id == '' }}
-      #   uses: ./.github/workflows/resolve-slack-id.yml
-      #   with:
-      #     github_user: ${{ github.event.pull_request.user.login }}
-      #     SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   id: slack-lookup
-
-      # 🧠 Save resolved Slack ID
-      # - name: Cache Slack ID
-      #   if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
-      #   run: echo "${{ steps.slack-lookup.outputs.slack_id }}" > slack-id.txt
-
-      # - name: Upload Slack ID artifact
-      #   if: ${{ steps.slack-lookup.outputs.slack_id != '' }}
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: slack-id-${{ github.event.pull_request.user.login }}
-      #     path: slack-id.txt
-
-      # ─────────────────────────────────────────────────────────────
       # 🧠 Restore Slack timestamp from cache
       - name: Restore Slack timestamp from cache
         id: restore-ts
@@ -79,6 +43,8 @@ jobs:
         with:
           path: cache_ts
           key: slack-ts-${{ github.event.pull_request.number }}
+          restore-keys: |
+            slack-ts-${{ github.event.pull_request.number }}-
 
       # ✅ Read the timestamp if available
       - name: Read Slack timestamp from cache
@@ -114,7 +80,7 @@ jobs:
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* \($status) \($emoji)"
+                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* \`$status\`"
                 }
               }
             ]
@@ -148,7 +114,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: cache_ts
-          key: slack-ts-${{ github.event.pull_request.number }}
+          key: slack-ts-${{ github.event.pull_request.number }}-${{ github.run_id }}
 
       - name: Update Slack message
         if: ${{ steps.read-ts.outputs.ts != '' }}

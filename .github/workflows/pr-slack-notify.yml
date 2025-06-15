@@ -4,25 +4,16 @@ on:
   pull_request:
     types: [labeled, closed]
 
-permissions:
-  contents: read
-  actions: write
-
 jobs:
-  notify-slack:
+  build-message:
     runs-on: ubuntu-latest
-
+    outputs:
+      status: ${{ steps.status.outputs.status }}
+      emoji: ${{ steps.status.outputs.emoji }}
+      blocks: ${{ steps.blocks.outputs.blocks }}
     steps:
-      - name: Exit if label is not "Review Needed"
-        if: ${{ github.event.action == 'labeled' }}
-        run: |
-          if [[ "${{ github.event.label.name }}" != "Review Needed" ]]; then
-            echo "Label is not 'Review Needed'. Exiting."
-            exit 0
-          fi
-
-      - name: Set PR Status and Emoji
-        id: pr_status
+      - name: Compute PR Status and Emoji
+        id: status
         run: |
           status="${{ github.event.pull_request.state }}"
           emoji=":large_green_circle:"
@@ -35,92 +26,94 @@ jobs:
           echo "status=$status" >> $GITHUB_OUTPUT
           echo "emoji=$emoji" >> $GITHUB_OUTPUT
 
-      # - name: Debug cache file
-      #   run: |
-      #     ls -la cache_ts || echo "No cache_ts dir"
-      #     cat cache_ts/slack-ts.txt || echo "No ts file"
-
-      # 🧠 Restore Slack timestamp from cache
-      - name: Restore Slack timestamp from cache
-        id: restore-ts
-        uses: actions/cache/restore@v4
-        with:
-          path: cache_ts
-          key: slack-ts-${{ github.event.pull_request.number }}
-          restore-keys: |
-            slack-ts-${{ github.event.pull_request.number }}-
-
-      # ✅ Read the timestamp if available
-      - name: Read Slack timestamp from cache
-        id: read-ts
+      - name: Generate Slack Message Blocks
+        id: blocks
         run: |
-          if [ -f cache_ts/slack-ts.txt ]; then
-            ts=$(cat cache_ts/slack-ts.txt)
-            echo "ts=$ts" >> $GITHUB_OUTPUT
-          else
-            echo "ts=" >> $GITHUB_OUTPUT
-          fi
-
-      # ─────────────────────────────────────────────────────────────
-      # 🧱 Build Slack message payload
-      - name: Build Slack message blocks
-        id: message-block
-        run: |
-          BLOCKS=$(jq -n \
-            --arg emoji "${{ steps.pr_status.outputs.emoji }}" \
+          blocks=$(jq -n \
             --arg url "${{ github.event.pull_request.html_url }}" \
             --arg title "${{ github.event.pull_request.title }}" \
             --arg author "${{ github.event.pull_request.user.login }}" \
-            --arg status "${{ steps.pr_status.outputs.status }}" '
+            --arg status "${{ steps.status.outputs.status }}" '
             [
               {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: ":wave: A PR is in need of review"
+                  text: ":wave: A PR update"
                 }
               },
               {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* `\($status)`"
+                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* \($status)"
                 }
               }
             ]
           ')
+          # Escape newlines so it can be passed as output
+          echo "blocks=$(echo "$blocks" | jq -c .)" >> $GITHUB_OUTPUT
 
-          printf "blocks_json<<EOF\n%s\nEOF\n" "$BLOCKS" >> "$GITHUB_OUTPUT"
-
-      # ─────────────────────────────────────────────────────────────
-      # 📤 Send (or update) Slack message
-      - name: Send new Slack message
-        if: ${{ steps.read-ts.outputs.ts == '' }}
+  send-slack-message:
+    if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
+    needs: build-message
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack Message
         id: send
         uses: slackapi/slack-github-action@v1.24.0
         with:
           channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
           payload: |
             {
-              "blocks": ${{ steps.message-block.outputs.blocks_json }}
+              "blocks": ${{ needs.build-message.outputs.blocks }}
             }
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
-      - name: Save Slack timestamp to file
-        if: ${{ steps.send.outputs.ts != '' }}
+      - name: Save Slack Timestamp
         run: |
-          mkdir -p cache_ts
-          echo "${{ steps.send.outputs.ts }}" > cache_ts/slack-ts.txt
+          mkdir -p slack_ts
+          echo "${{ steps.send.outputs.ts }}" > slack_ts/ts.txt
 
-      - name: Save Slack timestamp to cache (persist)
-        if: ${{ steps.send.outputs.ts != '' }}
-        uses: actions/cache/save@v4
+      - name: Upload Slack Timestamp
+        uses: actions/upload-artifact@v4
         with:
-          path: cache_ts
-          key: slack-ts-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          name: slack-ts-${{ github.event.pull_request.number }}
+          path: slack_ts/ts.txt
 
-      - name: Update Slack message
+  update-slack-message:
+    if: ${{ github.event.action == 'closed' }}
+    needs: build-message
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get run ID of prior workflow
+        id: get-run
+        run: |
+          run_id=$(gh run list --workflow="PR Slack Notifier" --branch "${{ github.event.pull_request.head.ref }}" --json databaseId,status,conclusion -q '[.[] | select(.status=="completed" and .conclusion=="success")][0].databaseId')
+          echo "run_id=$run_id" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Slack timestamp artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slack-ts-${{ github.event.pull_request.number }}
+          run-id: ${{ steps.get-run.outputs.run_id }}
+
+      - name: Read Slack timestamp from artifact
+        id: read-ts
+        run: |
+          artifact_dir="slack-ts-${{ github.event.pull_request.number }}"
+          ts_file="slack_ts/ts.txt"
+          if [ -f "$artifact_dir/$ts_file" ]; then
+            ts=$(cat "$artifact_dir/$ts_file")
+            echo "ts=$ts" >> $GITHUB_OUTPUT
+          else
+            echo "ts=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Slack Message
         if: ${{ steps.read-ts.outputs.ts != '' }}
         uses: slackapi/slack-github-action@v1.24.0
         with:
@@ -128,7 +121,7 @@ jobs:
           update-ts: ${{ steps.read-ts.outputs.ts }}
           payload: |
             {
-              "blocks": ${{ steps.message-block.outputs.blocks_json }}
+              "blocks": ${{ needs.build-message.outputs.blocks }}
             }
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

@@ -87,6 +87,9 @@ jobs:
     needs: build-message
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Get run ID of prior workflow
         id: get-run
         run: |

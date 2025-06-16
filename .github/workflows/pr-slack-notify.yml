@@ -53,8 +53,8 @@ jobs:
                     "elements": [
                       {
                         "type": "link",
-                        "url": \($url),
-                        "text": \($title),
+                        "url": $url,
+                        "text": $title,
                         "style": {
                           "bold": true
                         }
@@ -68,7 +68,7 @@ jobs:
                       },
                       {
                         "type": "text",
-                        "text": \($author)
+                        "text": $author
                       },
                       {
                         "type": "text",
@@ -79,7 +79,7 @@ jobs:
                       },
                       {
                         "type": "text",
-                        "text": \($status)
+                        "text": $status
                       }
                     ]
                   }

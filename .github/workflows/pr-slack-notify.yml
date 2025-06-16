@@ -4,6 +4,8 @@ on:
   pull_request:
     types: [labeled, closed]
 
+run-name: PR ${{ github.event.pull_request.number }} - ${{ github.event.action }}
+
 jobs:
   build-message:
     runs-on: ubuntu-latest
@@ -90,10 +92,15 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Get run ID of prior workflow
+      - name: Get run ID of PR labeled run
         id: get-run
         run: |
-          run_id=$(gh run list --workflow="PR Slack Notifier" --branch "${{ github.event.pull_request.head.ref }}" --json databaseId,status,conclusion -q '[.[] | select(.status=="completed" and .conclusion=="success")][0].databaseId')
+          run_id=$(gh run list --workflow="PR Slack Notifier" \
+            --branch="${{ github.event.pull_request.head.ref }}" \
+            --json databaseId,name,conclusion,status \
+            --limit 10 \
+            -q '[.[] | select(.name | test(".*labeled$") and .status=="completed" and .conclusion=="success")][0].databaseId')
+          
           echo "run_id=$run_id" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

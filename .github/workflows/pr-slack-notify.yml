@@ -88,22 +88,48 @@ jobs:
     needs: build-message
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Get run ID of prior workflow
+      - name: Get prior run ID using GitHub Script
         id: get-run
-        run: |
-          run_id=$(gh run list \
-            --workflow="PR Slack Notifier" \
-            --branch "${{ github.event.pull_request.head.ref }}" \
-            --json name,databaseId,status,conclusion \
-            --limit 10 \
-            -q '[.[] | select(.name == "PR ${{ github.event.pull_request.number }} - labeled" and .status == "completed" and .conclusion == "success")][0].databaseId')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
 
-          echo "run_id=$run_id" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event: "pull_request"
+            });
+
+            const matchingRun = runs.data.workflow_runs.find(run =>
+              run.name === "PR Slack Notifier" &&
+              run.status === "completed" &&
+              run.conclusion === "success" &&
+              run.head_branch === context.payload.pull_request.head.ref &&
+              run.pull_requests.some(pr => pr.number === prNumber) &&
+              run.run_name.includes("labeled")
+            );
+
+            if (!matchingRun) core.setFailed("Matching run not found");
+            else core.setOutput("run_id", matchingRun.id);
+
+      # - name: Checkout repo
+      #   uses: actions/checkout@v4
+
+      # - name: Get run ID of prior workflow
+      #   id: get-run
+      #   run: |
+      #     run_id=$(gh run list \
+      #       --workflow="PR Slack Notifier" \
+      #       --branch "${{ github.event.pull_request.head.ref }}" \
+      #       --json name,databaseId,status,conclusion \
+      #       --limit 10 \
+      #       -q '[.[] | select(.name == "PR ${{ github.event.pull_request.number }} - labeled" and .status == "completed" and .conclusion == "success")][0].databaseId')
+
+      #     echo "run_id=$run_id" >> $GITHUB_OUTPUT
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download Slack timestamp artifact
         uses: actions/download-artifact@v4

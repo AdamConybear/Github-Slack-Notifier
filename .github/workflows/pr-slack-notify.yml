@@ -101,7 +101,7 @@ jobs:
               repo: context.repo.repo,
               event: "pull_request"
             });
-            console.log(runs);
+            console.log(runs.data.workflow_runs[0]);
 
             const matchingRun = runs.data.workflow_runs.find(run =>
               run.name === "PR Slack Notifier" &&

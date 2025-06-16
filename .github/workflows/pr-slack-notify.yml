@@ -38,18 +38,52 @@ jobs:
             --arg status "${{ steps.status.outputs.status }}" '
             [
               {
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: ":wave: A PR update"
+                "type": "section",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":wave: A PR is in need of review",
+                  "emoji": true
                 }
               },
               {
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: "> *<\($url)|\($title)>*\n> *Author:* \($author)\n> *Status:* \($status)"
-                }
+                "type": "rich_text",
+                "elements": [
+                  {
+                    "type": "rich_text_quote",
+                    "elements": [
+                      {
+                        "type": "link",
+                        "url": \($url),
+                        "text": \($title),
+                        "style": {
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "text": "\nAuthor: ",
+                        "style": {
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "text": \($author)
+                      },
+                      {
+                        "type": "text",
+                        "text": "\nStatus: ",
+                        "style": {
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "text": \($status)
+                      }
+                    ]
+                  }
+                ]
               }
             ]
           ')

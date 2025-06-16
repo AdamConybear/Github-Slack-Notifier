@@ -104,11 +104,11 @@ jobs:
             console.log(runs.data.workflow_runs[0]);
 
             const matchingRun = runs.data.workflow_runs.find(run =>
-              run.run_name.includes("labeled") &&
+              run.name.includes("labeled") &&
               run.status === "completed" &&
               run.conclusion === "success" &&
               run.head_branch === context.payload.pull_request.head.ref &&
-              run.pull_requests.some(pr => pr.number === prNumber) &&
+              run.pull_requests.some(pr => pr.number === prNumber)
             );
 
             if (!matchingRun) core.setFailed("Matching run not found");

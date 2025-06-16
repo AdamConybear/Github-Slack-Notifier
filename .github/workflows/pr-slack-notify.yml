@@ -92,15 +92,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Get run ID of PR labeled run
+      - name: Get run ID of prior workflow
         id: get-run
         run: |
-          run_id=$(gh run list --workflow="PR Slack Notifier" \
-            --branch="${{ github.event.pull_request.head.ref }}" \
-            --json databaseId,name,conclusion,status \
+          run_id=$(gh run list \
+            --workflow="PR Slack Notifier" \
+            --branch "${{ github.event.pull_request.head.ref }}" \
+            --json name,databaseId,status,conclusion \
             --limit 10 \
-            -q '[.[] | select(.name | test(".*labeled$") and .status=="completed" and .conclusion=="success")][0].databaseId')
-          
+            -q '[.[] | select(.name == "PR ${{ github.event.pull_request.number }} - labeled" and .status == "completed" and .conclusion == "success")][0].databaseId')
+
           echo "run_id=$run_id" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

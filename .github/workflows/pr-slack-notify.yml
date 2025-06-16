@@ -48,7 +48,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "plain_text",
-                  "text": "$emoji $status_title",
+                  "text": "\($emoji) \($status_title)",
                   "emoji": true
                 }
               },

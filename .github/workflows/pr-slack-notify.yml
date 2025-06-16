@@ -27,7 +27,8 @@ jobs:
           fi
           echo "status=$status" >> $GITHUB_OUTPUT
           echo "emoji=$emoji" >> $GITHUB_OUTPUT
-          echo github user: ${{ github.event.pull_request.user }}
+          echo email:${{ github.event.pull_request.user.email }}
+          echo ${{ github.event.pull_request.user }}
 
       - name: Generate Slack Message Blocks
         id: blocks

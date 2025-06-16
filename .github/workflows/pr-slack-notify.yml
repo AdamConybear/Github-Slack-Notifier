@@ -75,14 +75,13 @@ jobs:
 
       - name: Save Slack Timestamp
         run: |
-          mkdir -p slack_ts
-          echo "${{ steps.send.outputs.ts }}" > slack_ts/ts.txt
+          echo "${{ steps.send.outputs.ts }}" > ts.txt
 
       - name: Upload Slack Timestamp
         uses: actions/upload-artifact@v4
         with:
           name: slack-ts-${{ github.event.pull_request.number }}
-          path: slack_ts/ts.txt
+          path: ts.txt
 
   update-slack-message:
     if: ${{ github.event.action == 'closed' }}
@@ -115,14 +114,22 @@ jobs:
 
       - name: Read Slack timestamp from artifact
         id: read-ts
+        shell: bash
         run: |
-          ts_file="slack-ts-${{ github.event.pull_request.number }}/ts.txt"
-          if [ -f "$ts_file" ]; then
-            ts=$(cat "$ts_file")
-            echo "ts=$ts" >> $GITHUB_OUTPUT
-          else
-            echo "ts=" >> $GITHUB_OUTPUT
-          fi
+          value=`cat ts.txt`
+          echo "ts=$value" >> $GITHUB_OUTPUT
+          echo The slack timestamp is $value
+
+      # - name: Read Slack timestamp from artifact
+      #   id: read-ts
+      #   run: |
+      #     ts_file="slack-ts-${{ github.event.pull_request.number }}/ts.txt"
+      #     if [ -f "$ts_file" ]; then
+      #       ts=$(cat "$ts_file")
+      #       echo "ts=$ts" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "ts=" >> $GITHUB_OUTPUT
+      #     fi
 
       - name: Update Slack Message
         if: ${{ steps.read-ts.outputs.ts != '' }}

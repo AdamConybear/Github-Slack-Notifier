@@ -10,6 +10,7 @@ jobs:
   build-message:
     runs-on: ubuntu-latest
     outputs:
+      status_title: ${{ steps.status.outputs.title }}
       status: ${{ steps.status.outputs.status }}
       emoji: ${{ steps.status.outputs.emoji }}
       blocks: ${{ steps.blocks.outputs.blocks }}
@@ -17,14 +18,18 @@ jobs:
       - name: Compute PR Status and Emoji
         id: status
         run: |
+          title="A PR is in need of review"
           status="${{ github.event.pull_request.state }}"
           emoji=":large_green_circle:"
           if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            title="PR has been merged"
             status="merged"
-            emoji=":git-merged:"
+            emoji=":large_purple_circle:"
           elif [[ "$status" == "closed" ]]; then
-            emoji=":git-closed:"
+            title="PR has been closed"
+            emoji=":red_circle:"
           fi
+          echo "status_title=$title" >> $GITHUB_OUTPUT
           echo "status=$status" >> $GITHUB_OUTPUT
           echo "emoji=$emoji" >> $GITHUB_OUTPUT
 
@@ -35,13 +40,15 @@ jobs:
             --arg url "${{ github.event.pull_request.html_url }}" \
             --arg title "${{ github.event.pull_request.title }}" \
             --arg author "${{ github.event.pull_request.user.login }}" \
+            --arg status_title "${{ steps.status.outputs.status_title }}" \
+            --arg emoji "${{ steps.status.outputs.emoji }}" \
             --arg status "${{ steps.status.outputs.status }}" '
             [
               {
                 "type": "section",
                 "text": {
                   "type": "plain_text",
-                  "text": ":wave: A PR is in need of review",
+                  "text": "$emoji $status_title",
                   "emoji": true
                 }
               },

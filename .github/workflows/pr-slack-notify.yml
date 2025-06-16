@@ -118,18 +118,6 @@ jobs:
         run: |
           value=`cat ts.txt`
           echo "ts=$value" >> $GITHUB_OUTPUT
-          echo The slack timestamp is $value
-
-      # - name: Read Slack timestamp from artifact
-      #   id: read-ts
-      #   run: |
-      #     ts_file="slack-ts-${{ github.event.pull_request.number }}/ts.txt"
-      #     if [ -f "$ts_file" ]; then
-      #       ts=$(cat "$ts_file")
-      #       echo "ts=$ts" >> $GITHUB_OUTPUT
-      #     else
-      #       echo "ts=" >> $GITHUB_OUTPUT
-      #     fi
 
       - name: Update Slack Message
         if: ${{ steps.read-ts.outputs.ts != '' }}

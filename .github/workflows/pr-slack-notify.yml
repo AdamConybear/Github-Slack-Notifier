@@ -195,11 +195,10 @@ jobs:
 
       - name: Save Slack Timestamp and User ID
         run: |
-          printf '{ 
-            "ts": ${{ steps.send.outputs.ts }},  
-            "author": ${{ needs.get-user-info.outputs.author }}
-          }' >> slack_info.json
-        # echo "${{ steps.send.outputs.ts }}" > slack_info.json
+          jq -n \
+            --arg ts "${{ steps.send.outputs.ts }}" \
+            --arg author "${{ needs.get-user-info.outputs.author }}" \
+            '{ts: $ts, author: $author}' > slack_info.json
 
       - name: Upload Slack Timestamp and User ID
         uses: actions/upload-artifact@v4

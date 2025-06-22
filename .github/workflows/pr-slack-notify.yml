@@ -8,11 +8,15 @@ run-name: PR ${{ github.event.pull_request.number }} - ${{ github.event.action }
 
 jobs:
   get-first-run-id:
-    if: ${{ github.event.action == 'closed' }}
     runs-on: ubuntu-latest
     outputs:
       run_id: ${{ steps.get-run.outputs.run_id }}
     steps:
+      - name: Check for first run
+        if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
+        run: |
+          exit 0;
+
       - name: Get prior run ID using GitHub Script
         id: get-run
         continue-on-error: true

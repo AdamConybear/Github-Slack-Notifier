@@ -7,8 +7,88 @@ on:
 run-name: PR ${{ github.event.pull_request.number }} - ${{ github.event.action }}
 
 jobs:
+  get-first-run-id:
+    if: ${{ github.event.action == 'closed' }}
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.get-run.outputs.run_id }}
+    steps:
+      - name: Get prior run ID using GitHub Script
+        id: get-run
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event: "pull_request"
+            });
+
+            const matchingRun = runs.data.workflow_runs.find(run =>
+              run.name === `PR ${prNumber} - labeled` &&
+              run.status === "completed" &&
+              run.conclusion === "success" &&
+              run.head_branch === context.payload.pull_request.head.ref
+            );
+
+            core.setOutput("run_id", matchingRun?.id || '')
+
+  get-user-info:
+    needs: get-first-run-id
+    runs-on: ubuntu-latest
+    outputs:
+      ts: ${{ steps.read-artifact.outputs.ts }}
+      author: ${{ steps.set-author.outputs.author }}
+    steps:
+      - name: Download Slack Info artifact
+        if: needs.get-first-run-id.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: slack-ts-${{ github.event.pull_request.number }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ needs.get-first-run-id.outputs.run_id }}
+
+      - name: Check if artifact exists
+        id: check-file
+        run: |
+          if [ -f "slack_info.json" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read Slack Info from artifact
+        if: steps.check-file.outputs.found == 'true'
+        id: read-artifact
+        shell: bash
+        run: |
+          ts=$(jq -r '.ts' slack_info.json)
+          author=$(jq -r '.author' slack_info.json)
+          echo "ts=$ts" >> $GITHUB_OUTPUT
+          echo "author=$author" >> $GITHUB_OUTPUT
+
+      - name: Get author from API
+        if: steps.check-file.outputs.found == 'false'
+        id: get-author
+        run: |
+          gh_user="${{ github.event.pull_request.user.login }}"
+          # slack_handle="<@$slack_id>"
+          echo "author=$gh_user" >> $GITHUB_OUTPUT
+
+      - name: Set final author
+        id: set-author
+        run: |
+          author="${{ steps.read-artifact.outputs.author || steps.get-author.outputs.author }}"
+          echo "author=$author" >> $GITHUB_OUTPUT
+
   build-message:
     runs-on: ubuntu-latest
+    needs: get-user-info
     outputs:
       status: ${{ steps.status.outputs.status }}
       emoji: ${{ steps.status.outputs.emoji }}
@@ -36,7 +116,7 @@ jobs:
           blocks=$(jq -n \
             --arg url "${{ github.event.pull_request.html_url }}" \
             --arg title "${{ github.event.pull_request.title }}" \
-            --arg author "${{ github.event.pull_request.user.login }}" \
+            --arg author "${{ needs.get-user-info.outputs.author }}" \
             --arg status "${{ steps.status.outputs.status }}" '
             [
               {
@@ -94,7 +174,7 @@ jobs:
 
   send-slack-message:
     if: ${{ github.event.action == 'labeled' && github.event.label.name == 'Review Needed' }}
-    needs: build-message
+    needs: [build-message, get-user-info]
     runs-on: ubuntu-latest
     steps:
       - name: Send Slack Message
@@ -109,65 +189,72 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
-      - name: Save Slack Timestamp
+      - name: Save Slack Timestamp and User ID
         run: |
-          echo "${{ steps.send.outputs.ts }}" > ts.txt
+          printf '{ 
+            "ts": ${{ steps.send.outputs.ts }},  
+            "author": ${{ needs.get-user-info.outputs.author }}
+          }' >> slack_info.json
+        # echo "${{ steps.send.outputs.ts }}" > slack_info.json
 
-      - name: Upload Slack Timestamp
+      - name: Upload Slack Timestamp and User ID
         uses: actions/upload-artifact@v4
         with:
           name: slack-ts-${{ github.event.pull_request.number }}
-          path: ts.txt
+          path: slack_info.json
 
   update-slack-message:
-    if: ${{ github.event.action == 'closed' }}
-    needs: build-message
+    if: ${{ github.event.action == 'closed' && needs.get-user-info.outputs.ts != '' }}
+    needs: [build-message, get-user-info]
     runs-on: ubuntu-latest
     steps:
-      - name: Get prior run ID using GitHub Script
-        id: get-run
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request.number;
+      # - name: Get prior run ID using GitHub Script
+      #   id: get-run
+      #   uses: actions/github-script@v7
+      #   with:
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     script: |
+      #       const prNumber = context.payload.pull_request.number;
 
-            const runs = await github.rest.actions.listWorkflowRunsForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              event: "pull_request"
-            });
+      #       const runs = await github.rest.actions.listWorkflowRunsForRepo({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         event: "pull_request"
+      #       });
 
-            const matchingRun = runs.data.workflow_runs.find(run =>
-              run.name === `PR ${prNumber} - labeled` &&
-              run.status === "completed" &&
-              run.conclusion === "success" &&
-              run.head_branch === context.payload.pull_request.head.ref
-            );
+      #       const matchingRun = runs.data.workflow_runs.find(run =>
+      #         run.name === `PR ${prNumber} - labeled` &&
+      #         run.status === "completed" &&
+      #         run.conclusion === "success" &&
+      #         run.head_branch === context.payload.pull_request.head.ref
+      #       );
 
-            if (!matchingRun) core.setFailed("Matching run not found");
-            else core.setOutput("run_id", matchingRun.id);
+      #       if (!matchingRun) core.setFailed("Matching run not found");
+      #       else core.setOutput("run_id", matchingRun.id);
 
-      - name: Download Slack timestamp artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: slack-ts-${{ github.event.pull_request.number }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ steps.get-run.outputs.run_id }}
+      # - name: Download Slack Info artifact
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: slack-ts-${{ github.event.pull_request.number }}
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     run-id: ${{ steps.get-run.outputs.run_id }}
 
-      - name: Read Slack timestamp from artifact
-        id: read-ts
-        shell: bash
-        run: |
-          value=`cat ts.txt`
-          echo "ts=$value" >> $GITHUB_OUTPUT
+      # - name: Read Slack Info from artifact
+      #   id: read-ts
+      #   shell: bash
+      #   run: |
+      #     ts=$(jq -r '.ts' slack_info.json)
+      #     user_id=$(jq -r '.user_id' slack_info.json)
+      #     echo "ts=$ts" >> $GITHUB_OUTPUT
+      #     echo "user_id=$user_id" >> $GITHUB_OUTPUT
+        # value=`cat ts.txt`
+        # echo "ts=$value" >> $GITHUB_OUTPUT
 
       - name: Update Slack Message
-        if: ${{ steps.read-ts.outputs.ts != '' }}
         uses: slackapi/slack-github-action@v1.24.0
         with:
           channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
-          update-ts: ${{ steps.read-ts.outputs.ts }}
+          update-ts: ${{ needs.get-user-info.outputs.ts }}
           payload: |
             {
               "blocks": ${{ needs.build-message.outputs.blocks }}

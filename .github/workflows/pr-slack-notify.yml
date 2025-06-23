@@ -77,8 +77,32 @@ jobs:
         id: get-author
         run: |
           gh_user="${{ github.event.pull_request.user.login }}"
-          # slack_handle="<@$slack_id>"
-          echo "author=$gh_user" >> $GITHUB_OUTPUT
+          
+          # Step 1: Lookup GitHub user email
+          gh_email=$(curl -s -H "Authorization: token ${{ secrets.GH_PAT }}" \
+            https://api.github.com/users/$gh_user \
+            | jq -r '.email')
+
+          if [[ "$gh_email" == "null" || -z "$gh_email" ]]; then
+            echo "Could not find email for $gh_user"
+            slack_mention="$gh_user"  # fallback to username
+          else
+            echo "Found email: $gh_email"
+            
+            # Step 2: Lookup Slack user ID
+            slack_id=$(curl -s -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+              "https://slack.com/api/users.lookupByEmail?email=$gh_email" \
+              | jq -r '.user.id // empty')
+            
+            if [[ -z "$slack_id" ]]; then
+              echo "Slack user not found for $gh_email"
+              slack_mention="$gh_user"
+            else
+              slack_mention="<@$slack_id>"
+            fi
+          fi
+
+          echo "author=$slack_mention" >> $GITHUB_OUTPUT
 
       - name: Set final author
         id: set-author
